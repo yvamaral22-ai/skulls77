@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Master Admin check (by email or by role in DB)
+    function isMaster() {
+      return isAuthenticated() && (
+        request.auth.token.email == "yvamaral22@gmail.com" ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions == "master"
+      );
+    }
+
+    // Users collection: Private data
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isMaster();
+      allow list: if isMaster();
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && (isOwner(userId) || isMaster());
+    }
+
+    // Profiles collection: Public data (name, role)
+    match /profiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isMaster();
+    }
+
+    // Staff Invites: Master can manage, anyone can read their own invite during registration
+    match /staff_invites/{email} {
+      allow read: if isAuthenticated() && (isMaster() || request.auth.token.email == email);
+      allow write: if isMaster();
+    }
+
+    // Services collection: Readable by all staff, editable by master
+    match /services/{serviceId} {
+      allow read: if isAuthenticated();
+      allow write: if isMaster();
+    }
+
+    // Appointments collection: Readable by all staff, editable by master or the assigned barber
+    match /appointments/{appointmentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (isMaster() || resource.data.barberId == request.auth.uid);
+      allow delete: if isMaster();
+    }
+
+    // Products collection: Readable by all staff, editable by master
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if isMaster();
+    }
+
+    // Stock movements collection: Readable by all staff, create by any authenticated staff
+    match /stock_movements/{movementId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isMaster();
+    }
+  }
+}

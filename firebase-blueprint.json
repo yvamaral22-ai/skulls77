@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Private user data for staff members.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["owner", "employee"] },
+        "permissions": { "type": "string", "enum": ["master", "standard"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role", "permissions", "createdAt"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "Public profile data for staff members.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Barber shop services.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "duration": { "type": "integer" }
+      },
+      "required": ["name", "price", "duration"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Customer appointments.",
+      "type": "object",
+      "properties": {
+        "clientName": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "barberId": { "type": "string" },
+        "barberName": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "serviceName": { "type": "string" },
+        "price": { "type": "number" },
+        "duration": { "type": "integer" },
+        "date": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["confirmed", "completed", "cancelled"] },
+        "paymentMethod": { "type": "string", "enum": ["pix", "credit", "debit", "cash"], "description": "Method used for payment at checkout." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientName", "barberId", "serviceId", "date", "status"]
+    },
+    "StaffInvite": {
+      "title": "StaffInvite",
+      "description": "Pre-registration invitation for staff.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["owner", "employee"] },
+        "permissions": { "type": "string", "enum": ["master", "standard"] },
+        "invitedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "role", "permissions", "invitedBy", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Barber shop products for stock management.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "unit": { "type": "string" },
+        "minStock": { "type": "number" },
+        "currentStock": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "minStock", "currentStock", "unit", "createdAt", "updatedAt"]
+    },
+    "StockMovement": {
+      "title": "StockMovement",
+      "description": "Records of product stock entries and exits.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "type": { "type": "string", "enum": ["in", "out"] },
+        "quantity": { "type": "number" },
+        "reason": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" }
+      },
+      "required": ["productId", "productName", "type", "quantity", "date", "userId", "userName"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "Private user data." },
+    "/profiles/{userId}": { "schema": "Profile", "description": "Public profile data." },
+    "/services/{serviceId}": { "schema": "Service", "description": "Shop services." },
+    "/appointments/{appointmentId}": { "schema": "Appointment", "description": "Customer appointments." },
+    "/staff_invites/{email}": { "schema": "StaffInvite", "description": "Staff invitations." },
+    "/products/{productId}": { "schema": "Product", "description": "Shop products." },
+    "/stock_movements/{movementId}": { "schema": "StockMovement", "description": "Stock movements history." }
+  }
+}
