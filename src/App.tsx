@@ -807,15 +807,23 @@ export default function App() {
     if (!editingStaff || !canManageAll) return;
 
     const promise = (async () => {
-      await updateDoc(doc(db, 'users', editingStaff.uid), {
+      // Use setDoc with merge for both to be safe and avoid "document not found" errors
+      const userDocRef = doc(db, 'users', editingStaff.uid);
+      const profileDocRef = doc(db, 'profiles', editingStaff.uid);
+
+      await setDoc(userDocRef, {
         name: editingStaff.name,
         role: editingStaff.role,
-        permissions: editingStaff.permissions
-      });
-      await updateDoc(doc(db, 'profiles', editingStaff.uid), {
+        permissions: editingStaff.permissions,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      
+      await setDoc(profileDocRef, {
         name: editingStaff.name,
-        role: editingStaff.role
-      });
+        role: editingStaff.role,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      
       setIsEditStaffModalOpen(false);
       setEditingStaff(null);
     })();
@@ -1315,101 +1323,110 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-[32px] md:rounded-[40px] border border-black/5 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[800px]">
-                      {/* Header Row */}
-                      <div 
-                        className="grid border-b border-black/5 bg-black/5"
-                        style={{ 
-                          gridTemplateColumns: `100px repeat(${(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).length}, minmax(200px, 1fr))` 
-                        }}
-                      >
-                        <div className="p-4 font-black text-[10px] uppercase tracking-widest text-black/30 border-r border-black/5 flex items-center justify-center">Horário</div>
-                        {(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).map(barber => (
-                          <div key={barber.uid} className="p-4 text-center border-r border-black/5 last:border-r-0 flex flex-col items-center justify-center gap-1">
-                            <div className="w-8 h-8 bg-black text-white rounded-lg flex items-center justify-center text-xs font-black">
-                              {(barber.name || 'U')[0]}
-                            </div>
-                            <p className="font-black text-xs">{barber.name}</p>
-                          </div>
-                        ))}
+                <div className="space-y-12">
+                  {(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).map(barber => (
+                    <div key={barber.uid} className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 border border-black/5 shadow-sm space-y-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-black text-white rounded-2xl flex items-center justify-center font-black shrink-0">
+                          {(barber.name || 'U')[0]}
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-black">{barber.name}</h3>
+                          <p className="text-xs text-black/40 font-bold uppercase tracking-widest">Agenda Individual</p>
+                        </div>
                       </div>
 
-                      {/* Time Rows */}
-                      <div className="divide-y divide-black/5">
-                        {TIME_SLOTS.map(time => (
-                          <div 
-                            key={time} 
-                            className="grid hover:bg-black/[0.01] transition-colors"
-                            style={{ 
-                              gridTemplateColumns: `100px repeat(${(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).length}, minmax(200px, 1fr))` 
-                            }}
-                          >
-                            <div className="p-4 font-bold text-xs text-black/30 border-r border-black/5 flex items-center justify-center bg-black/[0.02]">{time}</div>
-                            {(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).map(barber => {
-                              const apt = appointments.find(a => 
-                                a.barberId === barber.uid && 
-                                isSameDay(parseISO(a.date), agendaDate) &&
-                                format(parseISO(a.date), 'HH:mm') === time
-                              );
+                      <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <div className="min-w-[600px]">
+                            {/* Header */}
+                            <div className="grid grid-cols-[100px_1fr] border-b border-black/5 bg-black/5">
+                              <div className="p-4 font-black text-[10px] uppercase tracking-widest text-black/30 border-r border-black/5 text-center">Horário</div>
+                              <div className="p-4 font-black text-[10px] uppercase tracking-widest text-black/30 text-center">Agendamento</div>
+                            </div>
 
-                              return (
-                                <div key={barber.uid} className="p-2 border-r border-black/5 last:border-r-0 min-h-[100px] relative group">
-                                  {apt ? (
-                                    <div 
-                                      onClick={() => {
-                                        setSelectedAptForCheckout(apt);
-                                        if (apt.status !== 'completed') setIsCheckoutModalOpen(true);
-                                      }}
-                                      className={cn(
-                                        "h-full p-3 rounded-2xl text-left transition-all cursor-pointer shadow-sm border border-black/5",
-                                        apt.status === 'completed' ? "bg-green-50 text-green-800" : "bg-indigo-50 text-indigo-800"
-                                      )}
-                                    >
-                                      <div className="flex items-center justify-between mb-1">
-                                        <p className="font-black text-[10px] truncate">{apt.clientName}</p>
-                                        <span className="text-[8px] font-black opacity-40">{apt.duration}m</span>
-                                      </div>
-                                      <p className="text-[9px] font-bold opacity-60 truncate flex items-center gap-1">
-                                        <Scissors className="w-2 h-2" /> {apt.serviceName}
-                                      </p>
-                                      {canManageAll && (
-                                        <button 
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteAppointment(apt.id);
+                            {/* Rows */}
+                            <div className="divide-y divide-black/5">
+                              {TIME_SLOTS.map(time => {
+                                const apt = appointments.find(a => 
+                                  a.barberId === barber.uid && 
+                                  isSameDay(parseISO(a.date), agendaDate) &&
+                                  format(parseISO(a.date), 'HH:mm') === time
+                                );
+
+                                return (
+                                  <div key={time} className="grid grid-cols-[100px_1fr] min-h-[70px] hover:bg-black/[0.01] transition-colors">
+                                    <div className="p-4 font-bold text-xs text-black/30 border-r border-black/5 flex items-center justify-center bg-black/[0.02]">{time}</div>
+                                    <div className="p-2 relative group flex items-center">
+                                      {apt ? (
+                                        <div 
+                                          onClick={() => {
+                                            setSelectedAptForCheckout(apt);
+                                            if (apt.status !== 'completed') setIsCheckoutModalOpen(true);
                                           }}
-                                          className="absolute top-1 right-1 p-1 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition-all"
+                                          className={cn(
+                                            "w-full p-3 rounded-2xl text-left transition-all cursor-pointer shadow-sm border border-black/5 flex items-center justify-between",
+                                            apt.status === 'completed' ? "bg-green-50 text-green-800" : "bg-indigo-50 text-indigo-800"
+                                          )}
                                         >
-                                          <Trash2 className="w-3 h-3" />
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                              <p className="font-black text-xs truncate">{apt.clientName}</p>
+                                              <span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{apt.duration}m</span>
+                                            </div>
+                                            <p className="text-[10px] font-bold opacity-60 truncate flex items-center gap-1">
+                                              <Scissors className="w-3 h-3" /> {apt.serviceName}
+                                            </p>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <a 
+                                              href={`https://wa.me/55${apt.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${apt.clientName}, confirmando seu agendamento na Barbearia Skulls para o dia ${format(parseISO(apt.date), 'dd/MM')} às ${format(parseISO(apt.date), 'HH:mm')}.`)}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="p-2 hover:bg-black/5 rounded-lg transition-colors"
+                                            >
+                                              <Phone className="w-3 h-3" />
+                                            </a>
+                                            {canManageAll && (
+                                              <button 
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleDeleteAppointment(apt.id);
+                                                }}
+                                                className="p-2 text-red-400 hover:text-red-600 transition-all"
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <button 
+                                          onClick={() => {
+                                            setNewApt({
+                                              ...newApt, 
+                                              barberId: barber.uid, 
+                                              date: format(agendaDate, 'yyyy-MM-dd'),
+                                              time: time
+                                            });
+                                            setIsBookingModalOpen(true);
+                                          }}
+                                          className="w-full h-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-indigo-400 hover:text-indigo-600 transition-all gap-2 font-bold text-xs"
+                                        >
+                                          <Plus className="w-4 h-4" /> Novo Agendamento
                                         </button>
                                       )}
                                     </div>
-                                  ) : (
-                                    <button 
-                                      onClick={() => {
-                                        setNewApt({
-                                          ...newApt, 
-                                          barberId: barber.uid, 
-                                          date: format(agendaDate, 'yyyy-MM-dd'),
-                                          time: time
-                                        });
-                                        setIsBookingModalOpen(true);
-                                      }}
-                                      className="w-full h-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-indigo-400 hover:text-indigo-600 transition-all"
-                                    >
-                                      <Plus className="w-5 h-5" />
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               </motion.div>
             )}
