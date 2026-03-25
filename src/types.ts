@@ -5,6 +5,7 @@ export interface User {
   role: 'owner' | 'employee';
   permissions: 'master' | 'standard'; // master = full access, standard = own agenda only
   createdAt: string;
+  deleted?: boolean;
 }
 
 export interface Service {

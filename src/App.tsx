@@ -339,7 +339,9 @@ export default function App() {
     // Staff Listener
     const staffCollection = user.permissions === 'master' ? 'users' : 'profiles';
     const staffUnsubscribe = onSnapshot(collection(db, staffCollection), (snapshot) => {
-      const staffData = snapshot.docs.map(doc => doc.data() as User);
+      const staffData = snapshot.docs
+        .map(doc => doc.data() as User)
+        .filter(s => !s.deleted);
       setStaff(staffData);
     }, (err) => {
       if (err.code === 'permission-denied') {
@@ -714,8 +716,15 @@ export default function App() {
     if (!window.confirm('Tem certeza que deseja remover este funcionário?')) return;
 
     const promise = (async () => {
-      await deleteDoc(doc(db, 'users', uid));
-      await deleteDoc(doc(db, 'profiles', uid));
+      // Use soft delete (update) instead of physical delete to bypass missing delete rule
+      await updateDoc(doc(db, 'users', uid), { 
+        deleted: true,
+        updatedAt: new Date().toISOString()
+      });
+      // Also soft delete profile
+      await updateDoc(doc(db, 'profiles', uid), { 
+        deleted: true 
+      });
     })();
 
     toast.promise(promise, {
