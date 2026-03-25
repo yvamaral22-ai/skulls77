@@ -47,6 +47,13 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Toaster, toast } from 'sonner';
+
+const TIME_SLOTS = [
+  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
+  '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'
+];
+
 import { 
   signInWithPopup, 
   onAuthStateChanged, 
@@ -1290,6 +1297,12 @@ export default function App() {
                     >
                       <ChevronRight className="w-5 h-5 rotate-180" />
                     </button>
+                    <button
+                      onClick={() => setAgendaDate(new Date())}
+                      className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                    >
+                      Hoje
+                    </button>
                     <div className="px-4 font-bold text-sm min-w-[120px] text-center flex-1 md:flex-none">
                       {isSameDay(agendaDate, new Date()) ? 'Hoje' : format(agendaDate, 'dd/MM/yyyy')}
                     </div>
@@ -1302,106 +1315,101 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-8 md:space-y-12">
-                  {(canManageAll ? staff : staff.filter(s => s.uid === user.uid)).map(barber => {
-                    const barberApts = appointments.filter(a => 
-                      a.barberId === barber.uid && 
-                      isSameDay(parseISO(a.date), agendaDate)
-                    ).sort((a, b) => a.date.localeCompare(b.date));
-
-                    return (
-                      <div key={barber.uid} className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 border border-black/5 shadow-sm">
-                        <div className="flex items-center gap-4 mb-8">
-                          <div className="w-12 h-12 bg-black text-white rounded-2xl flex items-center justify-center font-black shrink-0">
-                            {(barber.name || 'U')[0]}
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-black">{barber.name}</h3>
-                            <p className="text-xs text-black/40 font-bold uppercase tracking-widest">
-                              {barberApts.length} {barberApts.length === 1 ? 'Agendamento' : 'Agendamentos'}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4">
-                          {barberApts.length === 0 ? (
-                            <div className="py-12 text-center border-2 border-dashed border-black/5 rounded-[24px] md:rounded-[32px]">
-                              <p className="text-black/20 font-bold italic">Nenhum agendamento para este dia.</p>
-                              <button 
-                                onClick={() => {
-                                  setNewApt({...newApt, barberId: barber.uid, date: format(agendaDate, 'yyyy-MM-dd')});
-                                  setIsBookingModalOpen(true);
-                                }}
-                                className="mt-4 text-xs font-black uppercase tracking-widest text-indigo-600 hover:underline"
-                              >
-                                + Agendar agora
-                              </button>
+                <div className="bg-white rounded-[32px] md:rounded-[40px] border border-black/5 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[800px]">
+                      {/* Header Row */}
+                      <div 
+                        className="grid border-b border-black/5 bg-black/5"
+                        style={{ 
+                          gridTemplateColumns: `100px repeat(${(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).length}, minmax(200px, 1fr))` 
+                        }}
+                      >
+                        <div className="p-4 font-black text-[10px] uppercase tracking-widest text-black/30 border-r border-black/5 flex items-center justify-center">Horário</div>
+                        {(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).map(barber => (
+                          <div key={barber.uid} className="p-4 text-center border-r border-black/5 last:border-r-0 flex flex-col items-center justify-center gap-1">
+                            <div className="w-8 h-8 bg-black text-white rounded-lg flex items-center justify-center text-xs font-black">
+                              {(barber.name || 'U')[0]}
                             </div>
-                          ) : (
-                            barberApts.map(apt => (
-                              <div key={apt.id} className="group relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 p-5 md:p-6 bg-[#fcfcfc] hover:bg-white hover:shadow-xl hover:shadow-black/5 rounded-2xl md:rounded-3xl border border-black/5 transition-all">
-                                <div className="flex items-center gap-4 sm:w-20 sm:flex-col sm:gap-0 sm:shrink-0">
-                                  <p className="text-xl md:text-2xl font-black">{format(parseISO(apt.date), 'HH:mm')}</p>
-                                  <p className="text-[10px] font-black uppercase text-black/30">Início</p>
-                                </div>
-                                <div className="hidden sm:block h-12 w-px bg-black/5" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center flex-wrap gap-2 mb-1">
-                                    <p className="font-bold text-lg truncate">{apt.clientName}</p>
-                                    <span className={cn(
-                                      "px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest",
-                                      apt.status === 'completed' ? "bg-green-100 text-green-600" : "bg-indigo-100 text-indigo-600"
-                                    )}>
-                                      {apt.status === 'completed' ? 'Finalizado' : 'Confirmado'}
-                                    </span>
-                                  </div>
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-black/40">
-                                    <span className="flex items-center gap-1 truncate"><Scissors className="w-3 h-3" /> {apt.serviceName}</span>
-                                    <a 
-                                      href={`https://wa.me/55${apt.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${apt.clientName}, confirmando seu agendamento na Barbearia Skulls para o dia ${format(parseISO(apt.date), 'dd/MM')} às ${format(parseISO(apt.date), 'HH:mm')}.`)}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-1 truncate hover:text-green-600 transition-colors"
-                                    >
-                                      <Phone className="w-3 h-3" /> {apt.clientPhone}
-                                    </a>
-                                  </div>
-                                </div>
-                                <div className="flex items-center justify-end gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity border-t sm:border-t-0 pt-3 sm:pt-0 border-black/5">
-                                  {apt.status !== 'completed' && (
-                                    <button 
+                            <p className="font-black text-xs">{barber.name}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Time Rows */}
+                      <div className="divide-y divide-black/5">
+                        {TIME_SLOTS.map(time => (
+                          <div 
+                            key={time} 
+                            className="grid hover:bg-black/[0.01] transition-colors"
+                            style={{ 
+                              gridTemplateColumns: `100px repeat(${(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).length}, minmax(200px, 1fr))` 
+                            }}
+                          >
+                            <div className="p-4 font-bold text-xs text-black/30 border-r border-black/5 flex items-center justify-center bg-black/[0.02]">{time}</div>
+                            {(canManageAll ? staff : staff.filter(s => s.uid === user?.uid)).map(barber => {
+                              const apt = appointments.find(a => 
+                                a.barberId === barber.uid && 
+                                isSameDay(parseISO(a.date), agendaDate) &&
+                                format(parseISO(a.date), 'HH:mm') === time
+                              );
+
+                              return (
+                                <div key={barber.uid} className="p-2 border-r border-black/5 last:border-r-0 min-h-[100px] relative group">
+                                  {apt ? (
+                                    <div 
                                       onClick={() => {
                                         setSelectedAptForCheckout(apt);
-                                        setIsCheckoutModalOpen(true);
+                                        if (apt.status !== 'completed') setIsCheckoutModalOpen(true);
                                       }}
-                                      className="p-3 text-green-600 hover:bg-green-50 rounded-xl transition-colors"
-                                      title="Finalizar e Receber"
+                                      className={cn(
+                                        "h-full p-3 rounded-2xl text-left transition-all cursor-pointer shadow-sm border border-black/5",
+                                        apt.status === 'completed' ? "bg-green-50 text-green-800" : "bg-indigo-50 text-indigo-800"
+                                      )}
                                     >
-                                      <CheckCircle2 className="w-5 h-5" />
-                                    </button>
-                                  )}
-                                  {canManageAll && (
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="font-black text-[10px] truncate">{apt.clientName}</p>
+                                        <span className="text-[8px] font-black opacity-40">{apt.duration}m</span>
+                                      </div>
+                                      <p className="text-[9px] font-bold opacity-60 truncate flex items-center gap-1">
+                                        <Scissors className="w-2 h-2" /> {apt.serviceName}
+                                      </p>
+                                      {canManageAll && (
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteAppointment(apt.id);
+                                          }}
+                                          className="absolute top-1 right-1 p-1 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition-all"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
                                     <button 
-                                      onClick={() => handleDeleteAppointment(apt.id)}
-                                      className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                                      onClick={() => {
+                                        setNewApt({
+                                          ...newApt, 
+                                          barberId: barber.uid, 
+                                          date: format(agendaDate, 'yyyy-MM-dd'),
+                                          time: time
+                                        });
+                                        setIsBookingModalOpen(true);
+                                      }}
+                                      className="w-full h-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-indigo-400 hover:text-indigo-600 transition-all"
                                     >
-                                      <Trash2 className="w-5 h-5" />
+                                      <Plus className="w-5 h-5" />
                                     </button>
                                   )}
-                                  <button 
-                                    onClick={() => toast.info('Detalhes do agendamento em breve!')}
-                                    className="p-3 text-black/20 hover:text-black hover:bg-black/5 rounded-xl transition-colors"
-                                  >
-                                    <ArrowRight className="w-5 h-5" />
-                                  </button>
                                 </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })}
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
