@@ -54,6 +54,34 @@ const TIME_SLOTS = [
   '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'
 ];
 
+const SERVICE_PALETTE = [
+  { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200', icon: 'text-blue-400' },
+  { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200', icon: 'text-amber-400' },
+  { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200', icon: 'text-purple-400' },
+  { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200', icon: 'text-emerald-400' },
+  { bg: 'bg-rose-50', text: 'text-rose-800', border: 'border-rose-200', icon: 'text-rose-400' },
+  { bg: 'bg-cyan-50', text: 'text-cyan-800', border: 'border-cyan-200', icon: 'text-cyan-400' },
+  { bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border-indigo-200', icon: 'text-indigo-400' },
+  { bg: 'bg-orange-50', text: 'text-orange-800', border: 'border-orange-200', icon: 'text-orange-400' },
+];
+
+const getServiceColor = (serviceId: string, serviceName: string = '') => {
+  const name = serviceName.toLowerCase();
+  if (name.includes('corte')) return SERVICE_PALETTE[0]; // Blue
+  if (name.includes('barba')) return SERVICE_PALETTE[1]; // Amber
+  if (name.includes('sobrancelha')) return SERVICE_PALETTE[2]; // Purple
+  if (name.includes('platinado')) return SERVICE_PALETTE[4]; // Rose
+  if (name.includes('progressiva')) return SERVICE_PALETTE[3]; // Emerald
+  if (name.includes('hidratação')) return SERVICE_PALETTE[5]; // Cyan
+  
+  let hash = 0;
+  for (let i = 0; i < serviceId.length; i++) {
+    hash = serviceId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % SERVICE_PALETTE.length;
+  return SERVICE_PALETTE[index];
+};
+
 import { 
   signInWithPopup, 
   onAuthStateChanged, 
@@ -1268,34 +1296,41 @@ export default function App() {
                 {visibleAppointments.length === 0 ? (
                   <p className="text-center py-10 text-black/20 font-bold italic">Nenhum agendamento para hoje.</p>
                 ) : (
-                  visibleAppointments.slice(0, 5).map(apt => (
-                    <div 
-                      key={apt.id} 
-                      onClick={() => {
-                        setSelectedAptForCheckout({
-                          ...apt,
-                          editDate: format(parseISO(apt.date), 'yyyy-MM-dd'),
-                          editTime: format(parseISO(apt.date), 'HH:mm')
-                        });
-                        setIsCheckoutModalOpen(true);
-                      }}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-5 md:p-6 bg-[#fcfcfc] rounded-2xl md:rounded-3xl border border-black/5 gap-4 cursor-pointer hover:bg-black/[0.02] transition-all"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-black/5 rounded-2xl flex items-center justify-center font-black text-lg shrink-0">
-                          {format(parseISO(apt.date), 'HH:mm')}
+                  visibleAppointments.slice(0, 5).map(apt => {
+                    const colors = getServiceColor(apt.serviceId, apt.serviceName);
+                    return (
+                      <div 
+                        key={apt.id} 
+                        onClick={() => {
+                          setSelectedAptForCheckout({
+                            ...apt,
+                            editDate: format(parseISO(apt.date), 'yyyy-MM-dd'),
+                            editTime: format(parseISO(apt.date), 'HH:mm')
+                          });
+                          setIsCheckoutModalOpen(true);
+                        }}
+                        className={cn(
+                          "flex flex-col sm:flex-row sm:items-center justify-between p-5 md:p-6 rounded-2xl md:rounded-3xl border transition-all cursor-pointer hover:scale-[1.01] gap-4",
+                          colors.bg,
+                          colors.border
+                        )}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-white/50 rounded-2xl flex items-center justify-center font-black text-lg shrink-0">
+                            {format(parseISO(apt.date), 'HH:mm')}
+                          </div>
+                          <div className="min-w-0">
+                            <p className={cn("font-bold truncate", colors.text)}>{apt.clientName}</p>
+                            <p className="text-xs opacity-60 flex items-center gap-1 truncate"><Phone className="w-3 h-3" /> {apt.clientPhone}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-bold truncate">{apt.clientName}</p>
-                          <p className="text-xs text-black/40 flex items-center gap-1 truncate"><Phone className="w-3 h-3" /> {apt.clientPhone}</p>
+                        <div className="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-black/5">
+                          <p className={cn("text-sm font-bold", colors.text)}>{apt.serviceName}</p>
+                          <p className="text-[10px] uppercase font-black tracking-widest opacity-40">Barbeiro: {apt.barberName}</p>
                         </div>
                       </div>
-                      <div className="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-black/5">
-                        <p className="text-sm font-bold">{apt.serviceName}</p>
-                        <p className="text-[10px] uppercase font-black tracking-widest text-black/30">Barbeiro: {apt.barberName}</p>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1361,16 +1396,27 @@ export default function App() {
                             {/* Rows */}
                             <div className="divide-y divide-black/5">
                               {TIME_SLOTS.map(time => {
-                                const apt = appointments.find(a => 
-                                  a.barberId === barber.uid && 
-                                  isSameDay(parseISO(a.date), agendaDate) &&
-                                  format(parseISO(a.date), 'HH:mm') === time
-                                );
+                                const currentSlotTime = parseISO(`${format(agendaDate, 'yyyy-MM-dd')}T${time}`);
+                                
+                                // Find if there's an appointment that covers this slot
+                                const apt = appointments.find(a => {
+                                  if (a.barberId !== barber.uid || !isSameDay(parseISO(a.date), agendaDate) || a.status === 'cancelled') return false;
+                                  const startTime = parseISO(a.date);
+                                  const endTime = addMinutes(startTime, a.duration);
+                                  return currentSlotTime >= startTime && currentSlotTime < endTime;
+                                });
+
+                                const isStart = apt && format(parseISO(apt.date), 'HH:mm') === time;
+                                const isEnd = apt && format(addMinutes(parseISO(apt.date), apt.duration - 30), 'HH:mm') === time;
+                                const colors = apt ? getServiceColor(apt.serviceId, apt.serviceName) : null;
 
                                 return (
                                   <div key={time} className="grid grid-cols-[100px_1fr] min-h-[70px] hover:bg-black/[0.01] transition-colors">
                                     <div className="p-4 font-bold text-xs text-black/30 border-r border-black/5 flex items-center justify-center bg-black/[0.02]">{time}</div>
-                                    <div className="p-2 relative group flex items-center">
+                                    <div className={cn(
+                                      "relative group flex items-stretch",
+                                      apt ? "px-2" : "p-2"
+                                    )}>
                                       {apt ? (
                                         <div 
                                           onClick={() => {
@@ -1382,41 +1428,52 @@ export default function App() {
                                             setIsCheckoutModalOpen(true);
                                           }}
                                           className={cn(
-                                            "w-full p-3 rounded-2xl text-left transition-all cursor-pointer shadow-sm border border-black/5 flex items-center justify-between",
-                                            apt.status === 'completed' ? "bg-green-50 text-green-800" : "bg-indigo-50 text-indigo-800"
+                                            "w-full p-3 text-left transition-all cursor-pointer flex items-center justify-between border-x",
+                                            isStart && isEnd ? "rounded-2xl border-y my-2 shadow-sm" : 
+                                            isStart ? "rounded-t-2xl border-t mt-2 shadow-sm" : 
+                                            isEnd ? "rounded-b-2xl border-b mb-2 shadow-sm" : "border-y-0",
+                                            apt.status === 'completed' ? "bg-green-50 text-green-800 border-green-200" : `${colors?.bg} ${colors?.text} ${colors?.border}`
                                           )}
                                         >
                                           <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-0.5">
-                                              <p className="font-black text-xs truncate">{apt.clientName}</p>
-                                              <span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{apt.duration}m</span>
-                                            </div>
-                                            <p className="text-[10px] font-bold opacity-60 truncate flex items-center gap-1">
-                                              <Scissors className="w-3 h-3" /> {apt.serviceName}
-                                            </p>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <a 
-                                              href={`https://wa.me/55${apt.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${apt.clientName}, confirmando seu agendamento na Barbearia Skulls para o dia ${format(parseISO(apt.date), 'dd/MM')} às ${format(parseISO(apt.date), 'HH:mm')}.`)}`}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="p-2 hover:bg-black/5 rounded-lg transition-colors"
-                                            >
-                                              <Phone className="w-3 h-3" />
-                                            </a>
-                                            {canManageAll && (
-                                              <button 
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handleDeleteAppointment(apt.id);
-                                                }}
-                                                className="p-2 text-red-400 hover:text-red-600 transition-all"
-                                              >
-                                                <Trash2 className="w-3 h-3" />
-                                              </button>
+                                            {isStart ? (
+                                              <>
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                  <p className="font-black text-xs truncate">{apt.clientName}</p>
+                                                  <span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{apt.duration}m</span>
+                                                </div>
+                                                <p className="text-[10px] font-bold opacity-60 truncate flex items-center gap-1">
+                                                  <Scissors className="w-3 h-3" /> {apt.serviceName}
+                                                </p>
+                                              </>
+                                            ) : (
+                                              <div className="h-6" />
                                             )}
                                           </div>
+                                          {isStart && (
+                                            <div className="flex items-center gap-2">
+                                              <a 
+                                                href={`https://wa.me/55${apt.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${apt.clientName}, confirmando seu agendamento na Barbearia Skulls para o dia ${format(parseISO(apt.date), 'dd/MM')} às ${format(parseISO(apt.date), 'HH:mm')}.`)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="p-2 hover:bg-black/5 rounded-lg transition-colors"
+                                              >
+                                                <Phone className="w-3 h-3" />
+                                              </a>
+                                              {canManageAll && (
+                                                <button 
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteAppointment(apt.id);
+                                                  }}
+                                                  className="p-2 text-red-400 hover:text-red-600 transition-all"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
                                       ) : (
                                         <button 
