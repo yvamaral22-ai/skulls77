@@ -166,7 +166,8 @@ export default function App() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isStockMovementModalOpen, setIsStockMovementModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [selectedAptForCheckout, setSelectedAptForCheckout] = useState<Appointment | null>(null);
+  const [selectedAptForCheckout, setSelectedAptForCheckout] = useState<any>(null);
+  const [isEditingInModal, setIsEditingInModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -909,7 +910,8 @@ export default function App() {
       if (reportTimeFilter === 'afternoon' && (hour < 12 || hour >= 18)) return false;
       if (reportTimeFilter === 'night' && (hour < 18 || hour >= 24)) return false;
 
-      return true;
+      // ONLY COMPLETED APPOINTMENTS FOR EARNINGS
+      return a.status === 'completed';
     });
 
     const totalRevenue = filtered.reduce((acc, curr) => acc + curr.price, 0);
@@ -1267,7 +1269,18 @@ export default function App() {
                   <p className="text-center py-10 text-black/20 font-bold italic">Nenhum agendamento para hoje.</p>
                 ) : (
                   visibleAppointments.slice(0, 5).map(apt => (
-                    <div key={apt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 md:p-6 bg-[#fcfcfc] rounded-2xl md:rounded-3xl border border-black/5 gap-4">
+                    <div 
+                      key={apt.id} 
+                      onClick={() => {
+                        setSelectedAptForCheckout({
+                          ...apt,
+                          editDate: format(parseISO(apt.date), 'yyyy-MM-dd'),
+                          editTime: format(parseISO(apt.date), 'HH:mm')
+                        });
+                        setIsCheckoutModalOpen(true);
+                      }}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-5 md:p-6 bg-[#fcfcfc] rounded-2xl md:rounded-3xl border border-black/5 gap-4 cursor-pointer hover:bg-black/[0.02] transition-all"
+                    >
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-black/5 rounded-2xl flex items-center justify-center font-black text-lg shrink-0">
                           {format(parseISO(apt.date), 'HH:mm')}
@@ -1361,8 +1374,12 @@ export default function App() {
                                       {apt ? (
                                         <div 
                                           onClick={() => {
-                                            setSelectedAptForCheckout(apt);
-                                            if (apt.status !== 'completed') setIsCheckoutModalOpen(true);
+                                            setSelectedAptForCheckout({
+                                              ...apt,
+                                              editDate: format(parseISO(apt.date), 'yyyy-MM-dd'),
+                                              editTime: format(parseISO(apt.date), 'HH:mm')
+                                            });
+                                            setIsCheckoutModalOpen(true);
                                           }}
                                           className={cn(
                                             "w-full p-3 rounded-2xl text-left transition-all cursor-pointer shadow-sm border border-black/5 flex items-center justify-between",
@@ -1637,13 +1654,15 @@ export default function App() {
                   {staff.map(s => (
                     <div key={s.uid} className="p-6 md:p-8 bg-white rounded-[32px] md:rounded-[40px] border border-black/5 relative overflow-hidden group">
                       <div className="absolute top-0 right-0 p-4 md:p-6 flex gap-2">
-                        <button 
-                          onClick={() => { setEditingStaff(s); setIsEditStaffModalOpen(true); }}
-                          className="p-2 hover:bg-black/5 rounded-xl transition-colors"
-                        >
-                          <Settings className="w-5 h-5 text-black/20" />
-                        </button>
-                        {s.uid !== user.uid && (
+                        {canManageAll && (
+                          <button 
+                            onClick={() => { setEditingStaff(s); setIsEditStaffModalOpen(true); }}
+                            className="p-2 hover:bg-black/5 rounded-xl transition-colors"
+                          >
+                            <Settings className="w-5 h-5 text-black/20" />
+                          </button>
+                        )}
+                        {canManageAll && s.uid !== user.uid && (
                           <button 
                             onClick={() => handleDeleteStaff(s.uid)}
                             className="p-2 hover:bg-red-50 rounded-xl transition-colors"
@@ -2282,53 +2301,152 @@ export default function App() {
       <AnimatePresence>
         {isCheckoutModalOpen && selectedAptForCheckout && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCheckoutModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setIsCheckoutModalOpen(false); setIsEditingInModal(false); }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-white w-full max-w-xl rounded-[32px] md:rounded-[40px] p-6 md:p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-black tracking-tight">Finalizar Atendimento</h2>
+                  <h2 className="text-2xl md:text-3xl font-black tracking-tight">
+                    {isEditingInModal ? 'Editar Agendamento' : 'Detalhes do Atendimento'}
+                  </h2>
                   <p className="text-black/40 font-medium">{selectedAptForCheckout.clientName} • {selectedAptForCheckout.serviceName}</p>
                 </div>
-                <button onClick={() => setIsCheckoutModalOpen(false)} className="p-2 hover:bg-black/5 rounded-xl"><X /></button>
+                <button onClick={() => { setIsCheckoutModalOpen(false); setIsEditingInModal(false); }} className="p-2 hover:bg-black/5 rounded-xl"><X /></button>
               </div>
 
-              <form onSubmit={handleCheckout} className="space-y-8">
-                <div className="p-8 bg-black/5 rounded-[40px] text-center space-y-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-black/30">Total a Receber</p>
-                  <p className="text-5xl font-black tracking-tighter">R$ {selectedAptForCheckout.price.toFixed(2)}</p>
-                </div>
-
-                <div className="space-y-4">
-                  <label className="text-xs font-bold uppercase tracking-widest text-black/30 ml-2">Forma de Pagamento</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { id: 'pix', label: 'PIX', icon: ArrowRight },
-                      { id: 'credit', label: 'Cartão Crédito', icon: DollarSign },
-                      { id: 'debit', label: 'Cartão Débito', icon: DollarSign },
-                      { id: 'cash', label: 'Dinheiro', icon: DollarSign }
-                    ].map(method => (
-                      <button
-                        key={method.id}
-                        type="button"
-                        onClick={() => setCheckoutPaymentMethod(method.id as any)}
-                        className={cn(
-                          "p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-3 font-bold",
-                          checkoutPaymentMethod === method.id 
-                            ? "border-black bg-black text-white shadow-xl shadow-black/10 scale-[1.02]" 
-                            : "border-black/5 hover:border-black/20"
-                        )}
-                      >
-                        <method.icon className={cn("w-6 h-6", checkoutPaymentMethod === method.id ? "text-white" : "text-black/20")} />
-                        <span>{method.label}</span>
-                      </button>
-                    ))}
+              {!isEditingInModal ? (
+                <div className="space-y-8">
+                  <div className="p-8 bg-black/5 rounded-[40px] text-center space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-black/30">Total a Receber</p>
+                    <p className="text-5xl font-black tracking-tighter">R$ {selectedAptForCheckout.price.toFixed(2)}</p>
                   </div>
-                </div>
 
-                <button type="submit" className="w-full py-6 bg-black text-white rounded-3xl text-xl font-black shadow-xl shadow-black/10 hover:scale-[1.02] transition-transform mt-4">
-                  Confirmar Recebimento
-                </button>
-              </form>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => setIsEditingInModal(true)}
+                      className="p-6 rounded-3xl border-2 border-black/5 hover:border-black transition-all flex flex-col items-center gap-3 font-bold"
+                    >
+                      <Settings className="w-6 h-6 text-black/20" />
+                      <span>Editar Dados</span>
+                    </button>
+                    <div className="p-6 rounded-3xl bg-indigo-50 border-2 border-transparent flex flex-col items-center gap-3 font-bold text-indigo-600">
+                      <Scissors className="w-6 h-6" />
+                      <span>{selectedAptForCheckout.status === 'completed' ? 'Finalizado' : 'Pendente'}</span>
+                    </div>
+                  </div>
+
+                  {selectedAptForCheckout.status !== 'completed' && (
+                    <form onSubmit={handleCheckout} className="space-y-8">
+                      <div className="space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-black/30 ml-2">Forma de Pagamento</label>
+                        <div className="grid grid-cols-2 gap-4">
+                          {[
+                            { id: 'pix', label: 'PIX', icon: ArrowRight },
+                            { id: 'credit', label: 'Cartão Crédito', icon: DollarSign },
+                            { id: 'debit', label: 'Cartão Débito', icon: DollarSign },
+                            { id: 'cash', label: 'Dinheiro', icon: DollarSign }
+                          ].map(method => (
+                            <button
+                              key={method.id}
+                              type="button"
+                              onClick={() => setCheckoutPaymentMethod(method.id as any)}
+                              className={cn(
+                                "p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-3 font-bold",
+                                checkoutPaymentMethod === method.id 
+                                  ? "border-black bg-black text-white shadow-xl shadow-black/10 scale-[1.02]" 
+                                  : "border-black/5 hover:border-black/20"
+                              )}
+                            >
+                              <method.icon className={cn("w-6 h-6", checkoutPaymentMethod === method.id ? "text-white" : "text-black/20")} />
+                              <span>{method.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button type="submit" className="w-full py-6 bg-black text-white rounded-3xl text-xl font-black shadow-xl shadow-black/10 hover:scale-[1.02] transition-transform mt-4">
+                        Confirmar Recebimento
+                      </button>
+                    </form>
+                  )}
+                </div>
+              ) : (
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const promise = (async () => {
+                    const newDate = new Date(`${selectedAptForCheckout.editDate}T${selectedAptForCheckout.editTime}`).toISOString();
+                    await updateDoc(doc(db, 'appointments', selectedAptForCheckout.id), {
+                      clientName: selectedAptForCheckout.clientName,
+                      clientPhone: selectedAptForCheckout.clientPhone,
+                      date: newDate
+                    });
+                    setIsEditingInModal(false);
+                  })();
+                  toast.promise(promise, {
+                    loading: 'Atualizando...',
+                    success: 'Atualizado!',
+                    error: 'Erro ao atualizar.'
+                  });
+                }} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Nome do Cliente</label>
+                    <input 
+                      required 
+                      type="text" 
+                      value={selectedAptForCheckout.clientName} 
+                      onChange={e => setSelectedAptForCheckout({...selectedAptForCheckout, clientName: e.target.value})} 
+                      className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Telefone</label>
+                    <input 
+                      required 
+                      type="tel" 
+                      value={selectedAptForCheckout.clientPhone} 
+                      onChange={e => setSelectedAptForCheckout({...selectedAptForCheckout, clientPhone: e.target.value})} 
+                      className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest text-black/30">Data</label>
+                      <input 
+                        required 
+                        type="date" 
+                        value={selectedAptForCheckout.editDate || format(parseISO(selectedAptForCheckout.date), 'yyyy-MM-dd')} 
+                        onChange={e => setSelectedAptForCheckout({...selectedAptForCheckout, editDate: e.target.value})} 
+                        className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest text-black/30">Horário</label>
+                      <select 
+                        required 
+                        value={selectedAptForCheckout.editTime || format(parseISO(selectedAptForCheckout.date), 'HH:mm')} 
+                        onChange={e => setSelectedAptForCheckout({...selectedAptForCheckout, editTime: e.target.value})} 
+                        className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black font-bold"
+                      >
+                        {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex gap-4 mt-8">
+                    <button 
+                      type="button" 
+                      onClick={() => setIsEditingInModal(false)}
+                      className="flex-1 py-4 bg-black/5 text-black rounded-2xl font-bold hover:bg-black/10 transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="flex-1 py-4 bg-black text-white rounded-2xl font-bold hover:scale-[1.02] transition-all"
+                    >
+                      Salvar Alterações
+                    </button>
+                  </div>
+                </form>
+              )}
             </motion.div>
           </div>
         )}
