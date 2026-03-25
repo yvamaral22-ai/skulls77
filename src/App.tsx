@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Scissors, 
@@ -140,6 +140,8 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const nameRef = useRef('');
+  useEffect(() => { nameRef.current = name; }, [name]);
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Data State
@@ -228,12 +230,12 @@ export default function App() {
             
             let role: 'owner' | 'employee' = isBootstrapAdmin ? 'owner' : 'employee';
             let permissions: 'master' | 'standard' = isBootstrapAdmin ? 'master' : 'standard';
-            let invitedName = firebaseUser.displayName || name || 'Novo Barbeiro';
+            let invitedName: string = firebaseUser.displayName || nameRef.current || 'Novo Barbeiro';
 
             if (inviteSnapshot.exists()) {
               const inviteData = inviteSnapshot.data();
-              role = inviteData.role;
-              permissions = inviteData.permissions;
+              role = inviteData.role || role;
+              permissions = inviteData.permissions || permissions;
               invitedName = inviteData.name || invitedName;
               // Delete invite after use
               await deleteDoc(doc(db, 'staff_invites', firebaseUser.email!));
@@ -251,12 +253,13 @@ export default function App() {
             await setDoc(userDocRef, userData);
             await setDoc(doc(db, 'profiles', firebaseUser.uid), {
               uid: userData.uid,
-              name: userData.name,
+              name: userData.name || 'Novo Barbeiro',
               role: userData.role
             });
             setUser(userData);
           } else {
-            const userData = userDoc.data() as User;
+            const userData = { ...userDoc.data(), uid: firebaseUser.uid } as User;
+            if (!userData.name) userData.name = firebaseUser.displayName || 'Usuário';
             setUser(userData);
             
             // Sync profile if missing
@@ -264,7 +267,7 @@ export default function App() {
             if (!profileDoc.exists()) {
               await setDoc(doc(db, 'profiles', firebaseUser.uid), {
                 uid: userData.uid,
-                name: userData.name,
+                name: userData.name || 'Usuário',
                 role: userData.role
               });
             }
@@ -276,7 +279,7 @@ export default function App() {
           if (err.code === 'permission-denied' || err.message?.includes('permissions')) {
             const fallbackUser: User = {
               uid: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Usuário',
+              name: firebaseUser.displayName || nameRef.current || 'Usuário',
               email: firebaseUser.email || '',
               role: isBootstrapAdmin ? 'owner' : 'employee',
               permissions: isBootstrapAdmin ? 'master' : 'standard',
@@ -294,7 +297,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [name]);
+  }, []);
 
   // Data Listeners
   useEffect(() => {
@@ -1011,7 +1014,7 @@ export default function App() {
         <div className="pt-8 border-t border-black/5">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center font-bold">
-              {user.name[0]}
+              {(user.name || 'U')[0]}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm truncate">{user.name}</p>
@@ -1092,7 +1095,7 @@ export default function App() {
               <div className="pt-8 border-t border-black/5 mt-auto">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-12 h-12 bg-black/5 rounded-full flex items-center justify-center font-bold text-lg">
-                    {user.name[0]}
+                    {(user.name || 'U')[0]}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-lg truncate">{user.name}</p>
@@ -1117,7 +1120,7 @@ export default function App() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div>
                     <h2 className="text-4xl font-black tracking-tight">Painel de Controle</h2>
-                    <p className="text-black/40 font-medium">Bem-vindo de volta, {user.name.split(' ')[0]}.</p>
+                    <p className="text-black/40 font-medium">Bem-vindo de volta, {(user.name || 'Usuário').split(' ')[0]}.</p>
                   </div>
                   <button 
                     onClick={() => setIsBookingModalOpen(true)}
@@ -1228,7 +1231,7 @@ export default function App() {
                       <div key={barber.uid} className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 border border-black/5 shadow-sm">
                         <div className="flex items-center gap-4 mb-8">
                           <div className="w-12 h-12 bg-black text-white rounded-2xl flex items-center justify-center font-black shrink-0">
-                            {barber.name[0]}
+                            {(barber.name || 'U')[0]}
                           </div>
                           <div>
                             <h3 className="text-xl font-black">{barber.name}</h3>
@@ -1475,7 +1478,7 @@ export default function App() {
                       return (
                         <div key={s.uid} className="flex items-center justify-between p-6 bg-[#fcfcfc] rounded-3xl border border-black/5">
                           <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center font-bold">{s.name[0]}</div>
+                            <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center font-bold">{(s.name || 'U')[0]}</div>
                             <p className="font-bold">{s.name}</p>
                           </div>
                           <div className="text-right">
@@ -1544,7 +1547,7 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-4 md:gap-6 mb-8">
                         <div className="w-16 h-16 md:w-20 md:h-20 bg-black/5 rounded-2xl md:rounded-3xl flex items-center justify-center text-2xl md:text-3xl font-black shrink-0">
-                          {s.name[0]}
+                          {(s.name || 'U')[0]}
                         </div>
                         <div className="min-w-0">
                           <h3 className="text-xl md:text-2xl font-black truncate">{s.name}</h3>
@@ -1719,7 +1722,7 @@ export default function App() {
                               <p className="text-[10px] text-black/40 leading-tight">{m.reason || 'Sem observações'}</p>
                               <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-black/20">
                                 <span>{format(parseISO(m.date), 'dd/MM/yy HH:mm')}</span>
-                                <span>Por: {m.userName.split(' ')[0]}</span>
+                                <span>Por: {(m.userName || 'Usuário').split(' ')[0]}</span>
                               </div>
                             </div>
                           ))
