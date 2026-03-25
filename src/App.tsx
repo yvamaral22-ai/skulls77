@@ -162,6 +162,8 @@ export default function App() {
   const [selectedAptForCheckout, setSelectedAptForCheckout] = useState<Appointment | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [reportRange, setReportRange] = useState<'day' | 'week' | 'month' | 'custom'>('day');
   const [reportStartDate, setReportStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [reportEndDate, setReportEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -326,7 +328,9 @@ export default function App() {
 
     // Services Listener
     const servicesUnsubscribe = onSnapshot(collection(db, 'services'), (snapshot) => {
-      const servicesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+      const servicesData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Service))
+        .filter(s => !s.deleted);
       setServices(servicesData);
     }, (err) => {
       if (err.code === 'permission-denied') {
@@ -374,7 +378,9 @@ export default function App() {
 
     // Products Listener
     const productsUnsubscribe = onSnapshot(collection(db, 'products'), (snapshot) => {
-      const productsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      const productsData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Product))
+        .filter(p => !p.deleted);
       setProducts(productsData);
     }, (err) => {
       if (err.code === 'permission-denied') {
@@ -560,8 +566,34 @@ export default function App() {
     });
   };
 
+  const handleUpdateService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingService || !canManageAll) return;
+
+    const promise = (async () => {
+      const serviceData = {
+        name: editingService.name,
+        description: editingService.description,
+        price: typeof editingService.price === 'string' ? parseFloat(editingService.price) : editingService.price,
+        duration: typeof editingService.duration === 'string' ? parseInt(editingService.duration) : editingService.duration,
+      };
+
+      await updateDoc(doc(db, 'services', editingService.id), serviceData);
+      setEditingService(null);
+    })();
+
+    toast.promise(promise, {
+      loading: 'Atualizando serviço...',
+      success: 'Serviço atualizado com sucesso!',
+      error: 'Erro ao atualizar serviço.'
+    });
+  };
+
   const handleDeleteService = async (id: string) => {
-    const promise = deleteDoc(doc(db, 'services', id));
+    if (!canManageAll) return;
+    if (!window.confirm('Tem certeza que deseja remover este serviço?')) return;
+
+    const promise = updateDoc(doc(db, 'services', id), { deleted: true });
     toast.promise(promise, {
       loading: 'Removendo serviço...',
       success: 'Serviço removido.',
@@ -675,9 +707,37 @@ export default function App() {
     });
   };
 
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct || !canManageAll) return;
+
+    const promise = (async () => {
+      const productData = {
+        name: editingProduct.name,
+        description: editingProduct.description,
+        category: editingProduct.category,
+        price: typeof editingProduct.price === 'string' ? parseFloat(editingProduct.price) : editingProduct.price,
+        minStock: typeof editingProduct.minStock === 'string' ? parseInt(editingProduct.minStock) : editingProduct.minStock,
+        unit: editingProduct.unit,
+        lastUpdated: new Date().toISOString()
+      };
+
+      await updateDoc(doc(db, 'products', editingProduct.id), productData);
+      setEditingProduct(null);
+    })();
+
+    toast.promise(promise, {
+      loading: 'Atualizando produto...',
+      success: 'Produto atualizado com sucesso!',
+      error: 'Erro ao atualizar produto.'
+    });
+  };
+
   const handleDeleteProduct = async (id: string) => {
     if (!canManageAll) return;
-    const promise = deleteDoc(doc(db, 'products', id));
+    if (!window.confirm('Tem certeza que deseja remover este produto?')) return;
+
+    const promise = updateDoc(doc(db, 'products', id), { deleted: true });
     toast.promise(promise, {
       loading: 'Removendo produto...',
       success: 'Produto removido.',
@@ -717,14 +777,15 @@ export default function App() {
 
     const promise = (async () => {
       // Use soft delete (update) instead of physical delete to bypass missing delete rule
-      await updateDoc(doc(db, 'users', uid), { 
+      // Use setDoc with merge to ensure it works even if doc doesn't exist
+      await setDoc(doc(db, 'users', uid), { 
         deleted: true,
         updatedAt: new Date().toISOString()
-      });
+      }, { merge: true });
       // Also soft delete profile
-      await updateDoc(doc(db, 'profiles', uid), { 
+      await setDoc(doc(db, 'profiles', uid), { 
         deleted: true 
-      });
+      }, { merge: true });
     })();
 
     toast.promise(promise, {
@@ -1626,7 +1687,7 @@ export default function App() {
                         <span className="text-xs font-bold text-black/30 flex items-center gap-1"><Clock className="w-3 h-3" /> {s.duration} min</span>
                         <div className="flex gap-2">
                           <button 
-                            onClick={() => toast.info('Edição de serviço em breve!')}
+                            onClick={() => setEditingService(s)}
                             className="p-2 hover:bg-black/5 rounded-lg transition-colors"
                           >
                             <Settings className="w-4 h-4 text-black/20" />
@@ -1686,6 +1747,13 @@ export default function App() {
                               </p>
                             </div>
                             <div className="flex gap-2">
+                              <button 
+                                onClick={() => setEditingProduct(p)}
+                                className="p-3 bg-white border border-black/5 text-black/40 rounded-2xl hover:bg-black hover:text-white transition-all shadow-sm"
+                                title="Editar Produto"
+                              >
+                                <Settings className="w-5 h-5" />
+                              </button>
                               <button 
                                 onClick={() => { setSelectedProduct(p); setIsStockMovementModalOpen(true); }}
                                 className="p-3 bg-black text-white rounded-2xl hover:scale-105 transition-transform shadow-lg shadow-black/10"
@@ -1859,7 +1927,100 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Invite Modal */}
+      {/* Edit Service Modal */}
+      <AnimatePresence>
+        {editingService && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingService(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-white w-full max-w-xl rounded-[32px] md:rounded-[40px] p-6 md:p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl md:text-3xl font-black tracking-tight">Editar Serviço</h2>
+                <button onClick={() => setEditingService(null)} className="p-2 hover:bg-black/5 rounded-xl"><X /></button>
+              </div>
+
+              <form onSubmit={handleUpdateService} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-black/30">Nome do Serviço</label>
+                  <input required type="text" value={editingService.name} onChange={e => setEditingService({...editingService, name: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" placeholder="Ex: Corte de Cabelo" />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-black/30">Descrição</label>
+                  <textarea value={editingService.description} onChange={e => setEditingService({...editingService, description: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black min-h-[100px]" placeholder="Breve descrição do serviço..." />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Preço (R$)</label>
+                    <input required type="number" step="0.01" value={editingService.price} onChange={e => setEditingService({...editingService, price: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" placeholder="0,00" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Duração (min)</label>
+                    <input required type="number" value={editingService.duration} onChange={e => setEditingService({...editingService, duration: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" placeholder="30" />
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full py-6 bg-black text-white rounded-3xl text-xl font-black shadow-xl shadow-black/10 hover:scale-[1.02] transition-transform mt-4">
+                  Atualizar Serviço
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Product Modal */}
+      <AnimatePresence>
+        {editingProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingProduct(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-white w-full max-w-xl rounded-[32px] md:rounded-[40px] p-6 md:p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl md:text-3xl font-black tracking-tight">Editar Produto</h2>
+                <button onClick={() => setEditingProduct(null)} className="p-2 hover:bg-black/5 rounded-xl"><X /></button>
+              </div>
+
+              <form onSubmit={handleUpdateProduct} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-black/30">Nome do Produto</label>
+                  <input required type="text" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" placeholder="Ex: Pomada Modeladora" />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-black/30">Descrição</label>
+                  <textarea value={editingProduct.description} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black min-h-[100px]" placeholder="Breve descrição do produto..." />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Categoria</label>
+                    <input required type="text" value={editingProduct.category} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" placeholder="Ex: Cabelo" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Preço (R$)</label>
+                    <input required type="number" step="0.01" value={editingProduct.price} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" placeholder="0,00" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Estoque Mínimo</label>
+                    <input required type="number" value={editingProduct.minStock} onChange={e => setEditingProduct({...editingProduct, minStock: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" placeholder="5" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Unidade</label>
+                    <input required type="text" value={editingProduct.unit} onChange={e => setEditingProduct({...editingProduct, unit: e.target.value})} className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" placeholder="Ex: un, ml, g" />
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full py-6 bg-black text-white rounded-3xl text-xl font-black shadow-xl shadow-black/10 hover:scale-[1.02] transition-transform mt-4">
+                  Atualizar Produto
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {isInviteModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

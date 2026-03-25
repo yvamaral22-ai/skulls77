@@ -14,6 +14,7 @@ export interface Service {
   description: string;
   price: number;
   duration: number;
+  deleted?: boolean;
 }
 
 export interface Appointment {
@@ -42,6 +43,7 @@ export interface Product {
   minStock: number;
   unit: string; // e.g., 'un', 'ml', 'g'
   lastUpdated: string;
+  deleted?: boolean;
 }
 
 export interface StockMovement {
