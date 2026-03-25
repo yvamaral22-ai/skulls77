@@ -15,6 +15,7 @@ service cloud.firestore {
     function isMaster() {
       return isAuthenticated() && (
         request.auth.token.email == "yvamaral22@gmail.com" ||
+        request.auth.token.email == "ygorvi110@gmail.com" ||
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions == "master"
       );
     }
@@ -25,6 +26,7 @@ service cloud.firestore {
       allow list: if isMaster();
       allow create: if isAuthenticated() && isOwner(userId);
       allow update: if isAuthenticated() && (isOwner(userId) || isMaster());
+      allow delete: if isMaster();
     }
 
     // Profiles collection: Public data (name, role)

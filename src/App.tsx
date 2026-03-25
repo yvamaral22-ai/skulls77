@@ -217,7 +217,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const isBootstrapAdmin = firebaseUser.email === 'yvamaral22@gmail.com';
+        const isBootstrapAdmin = firebaseUser.email === 'yvamaral22@gmail.com' || firebaseUser.email === 'ygorvi110@gmail.com';
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         
         try {
@@ -260,6 +260,14 @@ export default function App() {
           } else {
             const userData = { ...userDoc.data(), uid: firebaseUser.uid } as User;
             if (!userData.name) userData.name = firebaseUser.displayName || 'Usuário';
+            
+            // Auto-upgrade bootstrap admins if they are not master
+            if (isBootstrapAdmin && userData.permissions !== 'master') {
+              userData.permissions = 'master';
+              userData.role = 'owner';
+              await setDoc(userDocRef, userData, { merge: true });
+            }
+            
             setUser(userData);
             
             // Sync profile if missing
@@ -345,10 +353,14 @@ export default function App() {
     const appointmentsRef = collection(db, 'appointments');
     const appointmentsQuery = user.permissions === 'master' 
       ? query(appointmentsRef, orderBy('date', 'asc'))
-      : query(appointmentsRef, where('barberId', '==', user.uid), orderBy('date', 'asc'));
+      : query(appointmentsRef, where('barberId', '==', user.uid));
 
     const appointmentsUnsubscribe = onSnapshot(appointmentsQuery, (snapshot) => {
       const appointmentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Appointment));
+      // Sort client-side for non-masters to avoid composite index requirement
+      if (user.permissions !== 'master') {
+        appointmentsData.sort((a, b) => a.date.localeCompare(b.date));
+      }
       setAppointments(appointmentsData);
     }, (err) => {
       if (err.code === 'permission-denied') {
