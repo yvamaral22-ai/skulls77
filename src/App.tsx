@@ -1294,10 +1294,20 @@ export default function App() {
             <div className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 border border-black/5 shadow-sm">
               <h3 className="text-xl font-bold mb-6">Próximos na Agenda</h3>
               <div className="space-y-4">
-                {visibleAppointments.length === 0 ? (
+                {visibleAppointments.filter(apt => {
+                  const aptDate = parseISO(apt.date);
+                  return isSameDay(aptDate, new Date()) && apt.status !== 'completed' && apt.status !== 'cancelled';
+                }).length === 0 ? (
                   <p className="text-center py-10 text-black/20 font-bold italic">Nenhum agendamento para hoje.</p>
                 ) : (
-                  visibleAppointments.slice(0, 5).map(apt => {
+                  visibleAppointments
+                    .filter(apt => {
+                      const aptDate = parseISO(apt.date);
+                      return isSameDay(aptDate, new Date()) && apt.status !== 'completed' && apt.status !== 'cancelled';
+                    })
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .slice(0, 5)
+                    .map(apt => {
                     const colors = getServiceColor(apt.serviceId, apt.serviceName);
                     return (
                       <div 
@@ -2443,7 +2453,11 @@ export default function App() {
                     await updateDoc(doc(db, 'appointments', selectedAptForCheckout.id), {
                       clientName: selectedAptForCheckout.clientName,
                       clientPhone: selectedAptForCheckout.clientPhone,
-                      date: newDate
+                      date: newDate,
+                      serviceId: selectedAptForCheckout.serviceId,
+                      serviceName: selectedAptForCheckout.serviceName,
+                      price: selectedAptForCheckout.price,
+                      duration: selectedAptForCheckout.duration
                     });
                     setIsEditingInModal(false);
                   })();
@@ -2472,6 +2486,28 @@ export default function App() {
                       onChange={e => setSelectedAptForCheckout({...selectedAptForCheckout, clientPhone: e.target.value})} 
                       className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black" 
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-black/30">Serviço</label>
+                    <select 
+                      required 
+                      value={selectedAptForCheckout.serviceId} 
+                      onChange={e => {
+                        const service = services.find(s => s.id === e.target.value);
+                        if (service) {
+                          setSelectedAptForCheckout({
+                            ...selectedAptForCheckout, 
+                            serviceId: service.id,
+                            serviceName: service.name,
+                            price: service.price,
+                            duration: service.duration
+                          });
+                        }
+                      }} 
+                      className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black font-bold"
+                    >
+                      {services.map(s => <option key={s.id} value={s.id}>{s.name} - R$ {s.price.toFixed(2)}</option>)}
+                    </select>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
