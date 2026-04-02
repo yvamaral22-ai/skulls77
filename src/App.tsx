@@ -979,6 +979,27 @@ export default function App() {
     return { totalRevenue, totalCount, list: filtered, topServices, paymentBreakdown };
   }, [visibleAppointments, reportRange, reportStartDate, reportEndDate, reportBarberFilter, reportServiceFilter, reportTimeFilter]);
 
+  // Dashboard Stats (Always for Today)
+  const dashboardStats = useMemo(() => {
+    const now = new Date();
+    const start = startOfDay(now);
+    const end = endOfDay(now);
+
+    const todayAppointments = visibleAppointments.filter(a => {
+      const d = parseISO(a.date);
+      return isWithinInterval(d, { start, end }) && a.status !== 'cancelled';
+    });
+
+    const completedToday = todayAppointments.filter(a => a.status === 'completed');
+    const totalRevenue = completedToday.reduce((acc, curr) => acc + curr.price, 0);
+    
+    return {
+      totalRevenue,
+      totalCount: todayAppointments.length,
+      completedCount: completedToday.length
+    };
+  }, [visibleAppointments]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -1259,9 +1280,9 @@ export default function App() {
                 </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              <StatCard icon={DollarSign} label="Ganhos Hoje" value={`R$ ${reportData.totalRevenue.toFixed(2)}`} color="bg-green-500" />
-              <StatCard icon={CalendarIcon} label="Agendamentos" value={reportData.totalCount.toString()} color="bg-blue-500" />
-              <StatCard icon={Users} label="Clientes Atendidos" value={reportData.totalCount.toString()} color="bg-purple-500" />
+              <StatCard icon={DollarSign} label="Ganhos Hoje" value={`R$ ${dashboardStats.totalRevenue.toFixed(2)}`} color="bg-green-500" />
+              <StatCard icon={CalendarIcon} label="Agendamentos Hoje" value={dashboardStats.totalCount.toString()} color="bg-blue-500" />
+              <StatCard icon={Users} label="Clientes Atendidos" value={dashboardStats.completedCount.toString()} color="bg-purple-500" />
             </div>
 
             {products.some(p => p.stock <= p.minStock) && (
