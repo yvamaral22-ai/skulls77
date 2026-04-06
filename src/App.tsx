@@ -167,7 +167,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'dashboard' | 'agenda' | 'services' | 'staff' | 'reports' | 'stock'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'agenda' | 'appointments' | 'services' | 'staff' | 'reports' | 'stock'>('dashboard');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // Auth UI State
@@ -208,6 +208,11 @@ export default function App() {
   const [reportServiceFilter, setReportServiceFilter] = useState<string>('all');
   const [reportTimeFilter, setReportTimeFilter] = useState<'all' | 'morning' | 'afternoon' | 'night'>('all');
   const [agendaDate, setAgendaDate] = useState(new Date());
+
+  // Appointments View Filters
+  const [aptFilterDate, setAptFilterDate] = useState<string>('');
+  const [aptFilterBarber, setAptFilterBarber] = useState<string>('all');
+  const [aptFilterStatus, setAptFilterStatus] = useState<string>('all');
 
   // Service Form State
   const [newService, setNewService] = useState({
@@ -1150,6 +1155,7 @@ export default function App() {
         <nav className="flex-1 space-y-2">
           <SidebarItem active={view === 'dashboard'} icon={LayoutDashboard} label="Dashboard" onClick={() => setView('dashboard')} />
           <SidebarItem active={view === 'agenda'} icon={CalendarIcon} label="Agenda" onClick={() => setView('agenda')} />
+          <SidebarItem active={view === 'appointments'} icon={History} label="Agendamentos" onClick={() => setView('appointments')} />
           {canManageAll && (
             <>
               <SidebarItem active={view === 'services'} icon={Scissors} label="Serviços" onClick={() => setView('services')} />
@@ -1210,6 +1216,12 @@ export default function App() {
                   icon={CalendarIcon} 
                   label="Agenda" 
                   onClick={() => { setView('agenda'); setIsMenuOpen(false); }} 
+                />
+                <SidebarItem 
+                  active={view === 'appointments'} 
+                  icon={History} 
+                  label="Agendamentos" 
+                  onClick={() => { setView('appointments'); setIsMenuOpen(false); }} 
                 />
                 {canManageAll && (
                   <>
@@ -1533,6 +1545,179 @@ export default function App() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </motion.div>
+            )}
+
+            {view === 'appointments' && (
+              <motion.div key="appointments" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <h2 className="text-4xl font-black tracking-tight">Todos os Agendamentos</h2>
+                    <p className="text-black/40 font-medium">Histórico completo e gestão de horários.</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setAptFilterDate('');
+                      setAptFilterBarber('all');
+                      setAptFilterStatus('all');
+                    }}
+                    className="px-6 py-3 border-2 border-black/5 rounded-2xl font-bold flex items-center gap-2 hover:bg-black/5 transition-all w-fit"
+                  >
+                    <Filter className="w-4 h-4" /> Limpar Filtros
+                  </button>
+                </div>
+
+                {/* Filters */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-6 rounded-[32px] border border-black/5 shadow-sm">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-black/30">Data</label>
+                    <input 
+                      type="date" 
+                      value={aptFilterDate} 
+                      onChange={e => setAptFilterDate(e.target.value)}
+                      className="w-full p-3 bg-black/5 rounded-xl border-none focus:ring-2 focus:ring-black text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-black/30">Barbeiro</label>
+                    <select 
+                      value={aptFilterBarber} 
+                      onChange={e => setAptFilterBarber(e.target.value)}
+                      className="w-full p-3 bg-black/5 rounded-xl border-none focus:ring-2 focus:ring-black text-sm font-bold"
+                    >
+                      <option value="all">Todos os Barbeiros</option>
+                      {staff.map(s => <option key={s.uid} value={s.uid}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-black/30">Status</label>
+                    <select 
+                      value={aptFilterStatus} 
+                      onChange={e => setAptFilterStatus(e.target.value)}
+                      className="w-full p-3 bg-black/5 rounded-xl border-none focus:ring-2 focus:ring-black text-sm font-bold"
+                    >
+                      <option value="all">Todos os Status</option>
+                      <option value="pending">Pendente</option>
+                      <option value="confirmed">Confirmado</option>
+                      <option value="completed">Concluído</option>
+                      <option value="cancelled">Cancelado</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-[32px] md:rounded-[40px] border border-black/5 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-black/5">
+                          <th className="p-6 font-black text-[10px] uppercase tracking-widest text-black/30">Data/Hora</th>
+                          <th className="p-6 font-black text-[10px] uppercase tracking-widest text-black/30">Cliente</th>
+                          <th className="p-6 font-black text-[10px] uppercase tracking-widest text-black/30">Barbeiro</th>
+                          <th className="p-6 font-black text-[10px] uppercase tracking-widest text-black/30">Serviço</th>
+                          <th className="p-6 font-black text-[10px] uppercase tracking-widest text-black/30">Status</th>
+                          <th className="p-6 font-black text-[10px] uppercase tracking-widest text-black/30">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-black/5">
+                        {visibleAppointments
+                          .filter(apt => {
+                            if (aptFilterDate && !isSameDay(parseISO(apt.date), parseISO(aptFilterDate))) return false;
+                            if (aptFilterBarber !== 'all' && apt.barberId !== aptFilterBarber) return false;
+                            if (aptFilterStatus !== 'all' && apt.status !== aptFilterStatus) return false;
+                            return true;
+                          })
+                          .sort((a, b) => b.date.localeCompare(a.date))
+                          .map(apt => {
+                            const colors = getServiceColor(apt.serviceId, apt.serviceName);
+                            return (
+                              <tr key={apt.id} className="hover:bg-black/[0.01] transition-colors">
+                                <td className="p-6">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-black/5 rounded-xl flex flex-col items-center justify-center shrink-0">
+                                      <span className="text-[10px] font-black leading-none">{format(parseISO(apt.date), 'dd')}</span>
+                                      <span className="text-[8px] font-bold uppercase opacity-40">{format(parseISO(apt.date), 'MMM', { locale: ptBR })}</span>
+                                    </div>
+                                    <div>
+                                      <p className="font-black text-xs">{format(parseISO(apt.date), 'HH:mm')}</p>
+                                      <p className="text-[10px] text-black/40 font-bold">{format(parseISO(apt.date), 'yyyy')}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <p className="font-black text-xs">{apt.clientName}</p>
+                                  <p className="text-[10px] text-black/40 font-bold">{apt.clientPhone}</p>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 bg-black text-white rounded-lg flex items-center justify-center text-[10px] font-black">
+                                      {(apt.barberName || 'U')[0]}
+                                    </div>
+                                    <span className="text-xs font-bold">{apt.barberName}</span>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <span className={cn(
+                                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                                    colors.bg, colors.text, colors.border
+                                  )}>
+                                    {apt.serviceName}
+                                  </span>
+                                </td>
+                                <td className="p-6">
+                                  <span className={cn(
+                                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                    apt.status === 'completed' ? "bg-green-100 text-green-700" :
+                                    apt.status === 'cancelled' ? "bg-red-100 text-red-700" :
+                                    apt.status === 'confirmed' ? "bg-blue-100 text-blue-700" :
+                                    "bg-yellow-100 text-yellow-700"
+                                  )}>
+                                    {apt.status === 'completed' ? 'Concluído' :
+                                     apt.status === 'cancelled' ? 'Cancelado' :
+                                     apt.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
+                                  </span>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex items-center gap-2">
+                                    <button 
+                                      onClick={() => {
+                                        setSelectedAptForCheckout({
+                                          ...apt,
+                                          editDate: format(parseISO(apt.date), 'yyyy-MM-dd'),
+                                          editTime: format(parseISO(apt.date), 'HH:mm')
+                                        });
+                                        setIsCheckoutModalOpen(true);
+                                      }}
+                                      className="p-2 bg-black/5 text-black rounded-xl hover:bg-black hover:text-white transition-all"
+                                    >
+                                      <Settings className="w-4 h-4" />
+                                    </button>
+                                    {canManageAll && (
+                                      <button 
+                                        onClick={() => handleDeleteAppointment(apt.id)}
+                                        className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                    {visibleAppointments.filter(apt => {
+                      if (aptFilterDate && !isSameDay(parseISO(apt.date), parseISO(aptFilterDate))) return false;
+                      if (aptFilterBarber !== 'all' && apt.barberId !== aptFilterBarber) return false;
+                      if (aptFilterStatus !== 'all' && apt.status !== aptFilterStatus) return false;
+                      return true;
+                    }).length === 0 && (
+                      <div className="p-20 text-center">
+                        <p className="text-black/20 font-bold italic">Nenhum agendamento encontrado com esses filtros.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}
