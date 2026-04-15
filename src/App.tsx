@@ -93,6 +93,7 @@ import {
   updateProfile,
   sendPasswordResetEmail
 } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import { 
   collection, 
   doc, 
@@ -107,7 +108,7 @@ import {
   serverTimestamp,
   orderBy
 } from 'firebase/firestore';
-import { auth, db, googleProvider } from './firebase';
+import { auth, db, functions, googleProvider } from './firebase';
 import { cn } from './lib/utils';
 import { User, Service, Appointment, Product, StockMovement } from './types';
 
@@ -199,6 +200,10 @@ export default function App() {
   const [isEditingInModal, setIsEditingInModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
+  const [staffPasswordForm, setStaffPasswordForm] = useState({
+    newPassword: '',
+    confirmPassword: ''
+  });
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [reportRange, setReportRange] = useState<'day' | 'week' | 'month' | 'custom'>('day');
@@ -256,6 +261,25 @@ export default function App() {
     date: format(new Date(), 'yyyy-MM-dd'),
     time: '09:00'
   });
+
+  const resetStaffPasswordForm = () => {
+    setStaffPasswordForm({
+      newPassword: '',
+      confirmPassword: ''
+    });
+  };
+
+  const openEditStaffModal = (staffMember: User) => {
+    setEditingStaff(staffMember);
+    resetStaffPasswordForm();
+    setIsEditStaffModalOpen(true);
+  };
+
+  const closeEditStaffModal = () => {
+    setIsEditStaffModalOpen(false);
+    setEditingStaff(null);
+    resetStaffPasswordForm();
+  };
 
   // Auth Listener
   useEffect(() => {
@@ -859,14 +883,53 @@ export default function App() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
       
-      setIsEditStaffModalOpen(false);
-      setEditingStaff(null);
+      closeEditStaffModal();
     })();
 
     toast.promise(promise, {
       loading: 'Atualizando funcionário...',
       success: 'Funcionário atualizado!',
       error: 'Erro ao atualizar.'
+    });
+  };
+
+  const handleUpdateStaffPassword = async () => {
+    if (!editingStaff || !canManageAll || editingStaff.uid === user?.uid) return;
+
+    if (staffPasswordForm.newPassword !== staffPasswordForm.confirmPassword) {
+      toast.error('As senhas nao coincidem.');
+      return;
+    }
+
+    if (staffPasswordForm.newPassword.length < 6) {
+      toast.error('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    const promise = (async () => {
+      const updateStaffPassword = httpsCallable<
+        { uid: string; newPassword: string },
+        { success: boolean }
+      >(functions, 'adminUpdateStaffPassword');
+
+      await updateStaffPassword({
+        uid: editingStaff.uid,
+        newPassword: staffPasswordForm.newPassword
+      });
+
+      resetStaffPasswordForm();
+    })();
+
+    toast.promise(promise, {
+      loading: 'Atualizando senha...',
+      success: 'Senha atualizada com sucesso!',
+      error: (err: any) => {
+        if (err?.code === 'functions/permission-denied') return 'Somente masters podem alterar senhas da equipe.';
+        if (err?.code === 'functions/failed-precondition') return 'Nao e possivel alterar a sua propria senha por aqui.';
+        if (err?.code === 'functions/invalid-argument') return 'Informe uma senha valida com pelo menos 6 caracteres.';
+        if (err?.code === 'functions/not-found') return 'Funcionario nao encontrado ou function ainda nao foi publicada.';
+        return err?.message || 'Erro ao atualizar senha.';
+      }
     });
   };
 
@@ -1930,7 +1993,7 @@ export default function App() {
                       <div className="absolute top-0 right-0 p-4 md:p-6 flex gap-2">
                         {canManageAll && (
                           <button 
-                            onClick={() => { setEditingStaff(s); setIsEditStaffModalOpen(true); }}
+                            onClick={() => openEditStaffModal(s)}
                             className="p-2 hover:bg-black/5 rounded-xl transition-colors"
                           >
                             <Settings className="w-5 h-5 text-black/20" />
@@ -2402,11 +2465,11 @@ export default function App() {
       <AnimatePresence>
         {isEditStaffModalOpen && editingStaff && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditStaffModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeEditStaffModal} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-white w-full max-w-xl rounded-[32px] md:rounded-[40px] p-6 md:p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-2xl md:text-3xl font-black tracking-tight">Editar Funcionário</h2>
-                <button onClick={() => setIsEditStaffModalOpen(false)} className="p-2 hover:bg-black/5 rounded-xl"><X /></button>
+                <button onClick={closeEditStaffModal} className="p-2 hover:bg-black/5 rounded-xl"><X /></button>
               </div>
 
               <form onSubmit={handleUpdateStaff} className="space-y-6">
@@ -2431,6 +2494,56 @@ export default function App() {
                     </select>
                   </div>
                 </div>
+
+                {editingStaff.uid !== user?.uid && (
+                  <div className="space-y-4 border-t border-black/10 pt-6">
+                    <div>
+                      <h3 className="text-lg font-black tracking-tight">Trocar senha de acesso</h3>
+                      <p className="text-sm text-black/40">
+                        Apenas contas master podem redefinir a senha da equipe. Use pelo menos 6 caracteres.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-black/30">Nova Senha</label>
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={staffPasswordForm.newPassword}
+                          onChange={e => setStaffPasswordForm({ ...staffPasswordForm, newPassword: e.target.value })}
+                          className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black"
+                          placeholder="Minimo de 6 caracteres"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-black/30">Confirmar Nova Senha</label>
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={staffPasswordForm.confirmPassword}
+                          onChange={e => setStaffPasswordForm({ ...staffPasswordForm, confirmPassword: e.target.value })}
+                          className="w-full p-4 bg-black/5 rounded-2xl border-none focus:ring-2 focus:ring-black"
+                          placeholder="Repita a nova senha"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleUpdateStaffPassword}
+                      disabled={!staffPasswordForm.newPassword || !staffPasswordForm.confirmPassword}
+                      className={cn(
+                        "w-full py-4 rounded-3xl text-base font-black shadow-xl shadow-black/10 transition-transform",
+                        staffPasswordForm.newPassword && staffPasswordForm.confirmPassword
+                          ? "bg-neutral-900 text-white hover:scale-[1.02]"
+                          : "bg-black/10 text-black/30 cursor-not-allowed"
+                      )}
+                    >
+                      Atualizar Senha
+                    </button>
+                  </div>
+                )}
 
                 <button type="submit" className="w-full py-6 bg-black text-white rounded-3xl text-xl font-black shadow-xl shadow-black/10 hover:scale-[1.02] transition-transform mt-4">
                   Salvar Alterações
