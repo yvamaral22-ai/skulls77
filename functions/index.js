@@ -7,7 +7,10 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-exports.adminUpdateStaffPassword = onCall(async (request) => {
+exports.adminUpdateStaffPassword = onCall({
+  region: 'us-central1',
+  cors: true
+}, async (request) => {
   const caller = request.auth;
 
   if (!caller?.uid) {

@@ -928,6 +928,8 @@ export default function App() {
         if (err?.code === 'functions/failed-precondition') return 'Nao e possivel alterar a sua propria senha por aqui.';
         if (err?.code === 'functions/invalid-argument') return 'Informe uma senha valida com pelo menos 6 caracteres.';
         if (err?.code === 'functions/not-found') return 'Funcionario nao encontrado ou function ainda nao foi publicada.';
+        if (err?.code === 'functions/internal') return 'A funcao de troca de senha nao respondeu corretamente. Verifique se as Firebase Functions foram publicadas no projeto certo.';
+        if (err?.code === 'functions/unavailable') return 'Nao foi possivel alcancar a funcao de troca de senha. Verifique o deploy das Firebase Functions.';
         return err?.message || 'Erro ao atualizar senha.';
       }
     });
